@@ -4,6 +4,10 @@ from jdisplay.scrape_weather import WeatherScraper
 from jdisplay.dbcm import DBCM
 from datetime import date
 
+from pathlib import Path
+print("CWD:", Path.cwd())
+print("Using DB:", Path(DBOperations().db_path).resolve())
+
 def main():
     setup_logging()
     db = DBOperations(location="Winnipeg")
@@ -50,9 +54,15 @@ def main():
         elif ch == "5":
             confirm = input("Type 'YES' to delete this location's rows: ")
             if confirm == "YES":
-                with DBCM("weather.sqlite3") as cur:
+                from pathlib import Path
+                from jdisplay.dbcm import DBCM
+
+                db_path = Path(db.db_path).resolve()
+                with DBCM(db_path) as cur:
                     cur.execute("DELETE FROM weather WHERE location=?", (db.location,))
-                print("Purged.")
+                    deleted = cur.rowcount or 0
+
+                print(f"Deleted {deleted} rows from {db_path}")
             else:
                 print("Cancelled.")
 

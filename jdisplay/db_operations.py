@@ -1,5 +1,9 @@
+# jdisplay/db_operations.py
 from pathlib import Path
 from .dbcm import DBCM
+
+APP_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DB = APP_ROOT / "weather.sqlite3"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS weather(
@@ -12,8 +16,8 @@ CREATE TABLE IF NOT EXISTS weather(
 """
 
 class DBOperations:
-    def __init__(self, db_path: str | Path = "weather.sqlite3", location="Winnipeg"):
-        self.db_path = Path(db_path)
+    def __init__(self, db_path: str | Path = DEFAULT_DB, location="Winnipeg"):
+        self.db_path = Path(db_path)  # absolute path (DEFAULT_DB already absolute)
         self.location = location
 
     def initialize_db(self):
