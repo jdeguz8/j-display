@@ -1,4 +1,3 @@
-# jdisplay/weather_processor.py
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional
@@ -28,7 +27,7 @@ def main():
     db.initialize_db()
     plots = PlotOps()
 
-    print("J-Display | Milestone 2 — Plots & Menu")
+    print("J-Display |Plots & Menu")
     while True:
         print("\nMenu:")
         print("1) Boxplot: pick a year range (e.g., 2024..2025)")

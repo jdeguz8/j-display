@@ -1,0 +1,7 @@
+[app]
+location = "Winnipeg"
+station_id = 27174
+clock_24h = true
+theme = "dark"
+plots_dir = "C:/Users/jon_d/source/repos/j-display/plots"
+refresh_minutes = 60
