@@ -1,10 +1,8 @@
-# jdisplay/config.py
 from __future__ import annotations
 from pathlib import Path
 import datetime as _dt
 
-# Use TOML for human-friendly config.
-# Python 3.11+ has tomllib for reading. We'll write TOML ourselves (tiny).
+# TOML for human-friendly config.
 try:
     import tomllib  # py311+
 except ModuleNotFoundError:  # py310 fallback if ever needed

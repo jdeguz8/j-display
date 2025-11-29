@@ -20,7 +20,8 @@ def main():
         print("2) Fetch a SPECIFIC RANGE (YYYY-MM to YYYY-MM)")
         print("3) Fetch a SINGLE MONTH (YYYY-MM)")
         print("4) Fetch ALL history (backwards until unavailable)")
-        print("5) Delete all rows for this location")
+        print("5) Show all available scraped months")
+        print("6) Delete all rows for this location")
         print("0) Exit")
         ch = input("Select: ").strip()
 
@@ -52,6 +53,11 @@ def main():
             print(f"Inserted {added} rows (full history).")
 
         elif ch == "5":
+            rows = DBOperations().fetch_data(1900, 9999)
+            months = sorted({r[0][:7] for r in rows})
+            print("Available months:", ", ".join(months[-24:]) or "—")
+
+        elif ch == "6":
             confirm = input("Type 'YES' to delete this location's rows: ")
             if confirm == "YES":
                 from pathlib import Path
@@ -65,6 +71,7 @@ def main():
                 print(f"Deleted {deleted} rows from {db_path}")
             else:
                 print("Cancelled.")
+
 
         elif ch == "0":
             break

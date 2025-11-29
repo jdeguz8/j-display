@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-Scrape daily Winnipeg weather (min/max/mean) from Environment Canada using the CSV endpoint.
+Scrape daily weather (min/max/mean) from Environment Canada using the CSV endpoint.
 
 Public API:
 - WeatherScraper.scrape_backwards(start: date|None, progress=None) -> dict[str, Day]
@@ -8,7 +8,7 @@ Public API:
 - WeatherScraper.scrape_range(y1, m1, y2, m2, progress=None) -> dict[str, Day]
 
 Notes:
-- Uses bulk CSV endpoint (no JavaScript required).
+- Uses the bulk CSV endpoint (no JavaScript required).
 - Safely handles 'NA'/empty cells -> None.
 """
 
@@ -24,15 +24,19 @@ import urllib.request
 
 log = logging.getLogger(__name__)
 
-# Station config: Winnipeg (The Forks A / long-running station). Adjust if needed.
-STATION_ID = 27174    # you can make this configurable later
-TIMEFRAME  = 2        # 2 = daily data
+# ---------- Station / endpoint config ----------
 
-# CSV endpoint (documented by EC’s site via the “Download Data” button)
+# Default station: Winnipeg (long-running station). You can override via WeatherScraper(station_id=...)
+DEFAULT_STATION_ID = 27174
+TIMEFRAME = 2  # 2 = daily data
+
+# CSV bulk endpoint (this is what the "Download Data" button uses)
 CSV_BASE = "https://climate.weather.gc.ca/climate_data/bulk_data_e.html"
+
 
 @dataclass(frozen=True)
 class Day:
+    """One day's temperatures."""
     mn: float | None
     mx: float | None
     av: float | None
@@ -40,11 +44,19 @@ class Day:
 
 class WeatherScraper:
     """
-    Fetches month CSVs and returns a dict keyed by 'YYYY-MM-DD' -> Day(min, max, avg).
+    Fetches monthly CSVs and returns a dict keyed by 'YYYY-MM-DD' -> Day(min, max, avg).
     """
-    def __init__(self, pause_s: float = 0.35, user_agent: str | None = None):
+
+    def __init__(self, station_id: int = DEFAULT_STATION_ID, pause_s: float = 0.4,
+                 user_agent: str | None = None) -> None:
+        """
+        station_id: Environment Canada station ID (Winnipeg = 27174 by default)
+        pause_s:    delay between requests to be polite to the server
+        user_agent: optional custom UA string for HTTP requests
+        """
+        self.station_id = station_id
         self.pause_s = pause_s
-        self.user_agent = user_agent or "J-Display/1.0 (+educational project)"
+        self.user_agent = user_agent or "J-Display/1.0 (+student project)"
 
     # ------------------ public methods ------------------
 
@@ -61,7 +73,7 @@ class WeatherScraper:
         results: dict[str, Day] = {}
         while True:
             rows = self._fetch_month_csv(y, m, progress)
-            if not rows:
+            if rows is None or not rows:
                 break
             results.update(self._parse_month_rows(rows, y, m))
             # step back one month
@@ -74,7 +86,7 @@ class WeatherScraper:
 
     def scrape_last_months(self, months: int, start: date | None = None, progress=None) -> dict[str, Day]:
         """
-        Collect only the last N months (great for demos).
+        Collect only the last N months (great for demos and dashboard updates).
         """
         if months <= 0:
             return {}
@@ -87,7 +99,7 @@ class WeatherScraper:
         out: dict[str, Day] = {}
         while remaining > 0:
             rows = self._fetch_month_csv(y, m, progress)
-            if not rows:
+            if rows is None or not rows:
                 break
             out.update(self._parse_month_rows(rows, y, m))
             m -= 1
@@ -105,13 +117,13 @@ class WeatherScraper:
         """
         assert 1 <= m1 <= 12 and 1 <= m2 <= 12
         start_newer = (y1, m1) if (y1, m1) >= (y2, m2) else (y2, m2)
-        end_older   = (y2, m2) if (y1, m1) >= (y2, m2) else (y1, m1)
+        end_older = (y2, m2) if (y1, m1) >= (y2, m2) else (y1, m1)
 
         y, m = start_newer
         out: dict[str, Day] = {}
         while (y, m) >= end_older:
             rows = self._fetch_month_csv(y, m, progress)
-            if not rows:
+            if rows is None or not rows:
                 break
             out.update(self._parse_month_rows(rows, y, m))
             m -= 1
@@ -126,16 +138,20 @@ class WeatherScraper:
     def _fetch_month_csv(self, y: int, m: int, progress=None) -> list[dict] | None:
         """
         Download a single month as CSV and return a list of dict rows.
-        Returns None on 404 / network error; returns [] if CSV is empty for that month.
+
+        Returns:
+            None   -> HTTP 404 / hard network error (treat as "no more data")
+            []     -> CSV fetched but no usable rows for that month
+            [dict] -> parsed CSV rows
         """
         params = {
             "format": "csv",
-            "stationID": str(STATION_ID),
+            "stationID": str(self.station_id),
             "Year": str(y),
             "Month": str(m),
             "Day": "1",
             "timeframe": str(TIMEFRAME),
-            "submit": " Download Data"
+            "submit": " Download Data",
         }
         url = f"{CSV_BASE}?{urllib.parse.urlencode(params)}"
 
@@ -151,46 +167,50 @@ class WeatherScraper:
                 raw = r.read()
         except urllib.error.HTTPError as e:
             if e.code == 404:
+                # No more data for this station beyond this point.
+                log.info("HTTP 404 for %04d-%02d (station %s)", y, m, self.station_id)
                 return None
-            log.exception("HTTP %s for %04d-%02d", e.code, y, m)
+            log.exception("HTTP %s for %04d-%02d (station %s)", e.code, y, m, self.station_id)
             return None
         except Exception:
-            log.exception("Fetch failed %04d-%02d", y, m)
+            log.exception("Fetch failed %04d-%02d (station %s)", y, m, self.station_id)
             return None
 
         # Decode to text and feed into csv.DictReader
         try:
             text = raw.decode("utf-8", errors="ignore")
-            # Some responses include a leading UTF-8 BOM or comments; DictReader can handle it.
             buf = io.StringIO(text)
             reader = csv.DictReader(buf)
             rows = [row for row in reader]
             return rows
         except Exception:
-            log.exception("CSV parse failed %04d-%02d", y, m)
+            log.exception("CSV parse failed %04d-%02d (station %s)", y, m, self.station_id)
             return []
 
     def _parse_month_rows(self, rows: list[dict], y: int, m: int) -> dict[str, Day]:
         """
         Extract min/max/mean for each day from the CSV rows.
-        Expected headers include:
+        Expected headers include something like:
           'Date/Time', 'Max Temp (°C)', 'Min Temp (°C)', 'Mean Temp (°C)'
         """
         results: dict[str, Day] = {}
         day_rows = 0
         matched = 0
 
+        if not rows:
+            return results
+
         # Header names can vary a bit; be defensive:
         def pick(*candidates: str) -> str | None:
-            lower_map = {k.lower(): k for k in rows[0].keys()} if rows else {}
+            lower_map = {k.lower(): k for k in rows[0].keys()}
             for c in candidates:
                 if c.lower() in lower_map:
                     return lower_map[c.lower()]
             return None
 
         col_date = pick("Date/Time", "Date", "Local Date")
-        col_max  = pick("Max Temp (°C)", "Max Temp (Â°C)", "Max Temp (C)")
-        col_min  = pick("Min Temp (°C)", "Min Temp (Â°C)", "Min Temp (C)")
+        col_max = pick("Max Temp (°C)", "Max Temp (Â°C)", "Max Temp (C)")
+        col_min = pick("Min Temp (°C)", "Min Temp (Â°C)", "Min Temp (C)")
         col_mean = pick("Mean Temp (°C)", "Mean Temp (Â°C)", "Mean Temp (C)")
 
         for row in rows:
@@ -213,8 +233,8 @@ class WeatherScraper:
                 except ValueError:
                     return None
 
-            mx = as_num(row.get(col_max))  if col_max  else None
-            mn = as_num(row.get(col_min))  if col_min  else None
+            mx = as_num(row.get(col_max)) if col_max else None
+            mn = as_num(row.get(col_min)) if col_min else None
             av = as_num(row.get(col_mean)) if col_mean else None
             if any(v is not None for v in (mn, mx, av)):
                 matched += 1
