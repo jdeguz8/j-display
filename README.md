@@ -85,7 +85,7 @@ The goal is to simulate a **smart display / smart mirror** running on a 15" port
 
 ## Project Structure
 
-```text
+```
 j-display/
 ├─ jdisplay/
 │  ├─ __init__.py
@@ -104,3 +104,69 @@ j-display/
 ├─ J-Display.spec           # PyInstaller spec file (for building EXE)
 ├─ run_dashboard.py         # Thin wrapper script for PyInstaller entrypoint
 └─ README.md                # This file
+``` 
+> **Note**  
+> The SQLite database is stored in a user-local directory, e.g. on Windows:  
+> `C:\Users\<user>\AppData\Local\J-Display\weather.sqlite3`
+
+---
+
+## Data Source
+
+**Environment Canada – Historical climate data**
+
+- Data is fetched via the bulk CSV endpoint:  
+  `https://climate.weather.gc.ca/climate_data/bulk_data_e.html`
+- Configurable via **Station ID**:
+  - Default: `27174` (Winnipeg)
+- The project is **read-only** with respect to Environment Canada (no data is pushed back).
+
+---
+
+## Installation
+
+### Requirements
+
+- **Python 3.12+** (project was developed and tested with Python 3.12 / 3.13)
+- **OS**: Windows (tested)
+- **Libraries**:
+  - `matplotlib`
+  - `pillow`
+  - `pylint` (optional, for style checks)
+  - Standard library modules only otherwise
+
+### Steps
+
+#### 1. Clone the repository
+
+```
+git clone https://github.com/<your-username>/j-display.git
+cd j-display
+```
+
+### 2. Create and activate a virtual environment
+```
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# If execution policy blocks it, start a virtualenv-friendly shell or temporarily adjust policy.
+```
+
+### 3. Install dependencies
+```
+pip install matplotlib pillow pylint
+```
+## Future Enhancements
+
+Some ideas for future versions of J-Display:
+
+-  Multi-city / multi-station support (user can switch between locations)
+-  Additional metrics (precipitation, wind, etc.)
+-  Raspberry Pi deployment:
+-  Auto-start dashboard on boot
+-  Integrate physical buttons to switch views or update data
+-  More UI widgets:
+-  Weekly forecast panel
+-  Weather alerts banner
+-  Integration with an online calendar or task list.
+
