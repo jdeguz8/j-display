@@ -1,3 +1,5 @@
+"""Tkinter dashboard application for the J-Display project."""
+
 from __future__ import annotations
 
 import calendar
@@ -19,7 +21,7 @@ try:
 except Exception as e:
     raise RuntimeError("Install Pillow: pip install pillow") from e
 
-
+"""Main Tkinter window: calendar + plots + settings."""
 class Dashboard(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -105,6 +107,7 @@ class Dashboard(tk.Tk):
     # ------------------------------------------------------------------
     # Theme
     # ------------------------------------------------------------------
+    """Apply the current light/dark theme to widgets."""
     def _apply_theme(self):
         bg = "#0f172a" if self.theme == "dark" else "#f3f4f6"
         fg = "#e5e7eb" if self.theme == "dark" else "#111827"
@@ -139,6 +142,7 @@ class Dashboard(tk.Tk):
     # ------------------------------------------------------------------
     # Calendar view
     # ------------------------------------------------------------------
+    """Render the month grid and the 'today' summary label."""    
     def _build_calendar(self):
         # simple month grid
         for w in self.calendar_fr.winfo_children():
@@ -192,7 +196,7 @@ class Dashboard(tk.Tk):
 
         try:
             db = DBOperations(location=self.location)
-            rows = db.fetch_data(today.year, today.year)
+            rows = db.fetch_data(1900, 9999)
         except Exception as e:
             print("current weather lookup failed:", e)
             if hasattr(self, "current_weather_lbl"):
@@ -200,25 +204,44 @@ class Dashboard(tk.Tk):
             return
 
         if not rows:
-            # nothing in DB for this year
             if hasattr(self, "current_weather_lbl"):
                 self.current_weather_lbl.config(
                     text="Today: no data yet (use Update Data)"
                 )
             return
 
-        # Try to get today's row; if not present, fall back to latest available date
-        by_date = {r[0]: r for r in rows}  # sample_date -> row
+        # rows: (sample_date, min_temp, max_temp, avg_temp)
+        # keep only rows that actually have at least one numeric value
+        valid_rows = [
+            r for r in rows
+            if any(v is not None for v in (r[1], r[2], r[3]))
+        ]
+
+        if not valid_rows:
+            if hasattr(self, "current_weather_lbl"):
+                self.current_weather_lbl.config(
+                    text="Today: no temp data (all values are missing)"
+                )
+            return
+
+        # Map by date string
+        by_date = {r[0]: r for r in valid_rows}
+        dates_sorted = sorted(by_date.keys())
+
+        # 1) Prefer *today* if we have real data for today
         if today_iso in by_date:
             target_date = today_iso
+            label_prefix = "Today"
         else:
-            # fallback: latest date <= today, or just latest overall
-            dates = sorted(by_date.keys())
-            candidates = [d for d in dates if d <= today_iso]
-            target_date = (candidates[-1] if candidates else dates[-1])
+            # 2) Otherwise, pick latest date <= today, or just latest overall
+            candidates = [d for d in dates_sorted if d <= today_iso]
+            if candidates:
+                target_date = candidates[-1]
+            else:
+                target_date = dates_sorted[-1]
+            label_prefix = f"Latest ({target_date})"
 
         _, mn, mx, av = by_date[target_date]
-        label_prefix = "Today" if target_date == today_iso else f"Latest ({target_date})"
 
         parts = []
         if av is not None:
@@ -236,7 +259,6 @@ class Dashboard(tk.Tk):
 
         if hasattr(self, "current_weather_lbl"):
             self.current_weather_lbl.config(text=text)
-
 
 
     # ------------------------------------------------------------------
@@ -274,6 +296,7 @@ class Dashboard(tk.Tk):
     # ------------------------------------------------------------------
     # Plots: generate PNGs and reload
     # ------------------------------------------------------------------
+    """Regenerate PNG plots from the DB and reload them into the UI."""
     def refresh_plots(self, silent: bool = False):
         """Read DB, generate latest box/line plots, and reload images."""
         try:
@@ -333,7 +356,7 @@ class Dashboard(tk.Tk):
         # If user is on plots view, reload the images
         if self.view == "plots":
             self._show_plots()
-        self.update_current_weather()
+        self._update_current_weather()
 
     # ------------------------------------------------------------------
     # Settings dialog
@@ -512,6 +535,7 @@ class Dashboard(tk.Tk):
     # ------------------------------------------------------------------
     # Update data (scraper inside dashboard)
     # ------------------------------------------------------------------
+    """Fetch new data via WeatherScraper and update DB + UI."""
     def update_data(self):
         """Seed or update the weather DB, then refresh plots."""
         try:

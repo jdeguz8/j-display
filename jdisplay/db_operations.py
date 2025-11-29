@@ -1,3 +1,5 @@
+"""SQLite operations for storing scraped weather data."""
+
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List
