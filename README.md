@@ -8,7 +8,6 @@ Raspberry Pi weather + calendar dashboard.
 
 ```bash
 
-python cli.py
-
+python -m jdisplay.dashboard
 
 
